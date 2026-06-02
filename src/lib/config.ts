@@ -17,18 +17,18 @@ export const CONFIG = {
 
   // ==========================================
   // 📅 DATA E HORA DO CASAMENTO (Horário de Brasília)
-  // Data: 24 de Janeiro de 2027 às 15:00
+  // Data: 24 de Janeiro de 2027 às 09:00
   // ==========================================
-  WEDDING_DATE: new Date('2027-01-24T15:00:00-03:00'),
+  WEDDING_DATE: new Date('2027-01-24T15:00:00-09:00'),
 
   // ==========================================
   // 📍 LOCAL DO CASAMENTO
   // ==========================================
-  LOCATION_NAME: "Fazenda Santa Clara",
-  LOCATION_ADDRESS: "Fazenda Santa Clara – Rodovia BR-101, Km 234, Rio de Janeiro",
+  LOCATION_NAME: "Sítio Della Torre",
+  LOCATION_ADDRESS: "Estrada Municipal, 270 - Jardim Sandra, Mairiporã - SP, CEP: 07631-315",
   
   // URL do Google Maps (iframe do local)
-  GOOGLE_MAPS_IFRAME_URL: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3674.69748680373!2d-43.1929012!3d-22.9064197!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMjLCsDU0JzIzLjEiUyA0M8KwMTEnMzQuNCJX!5e0!3m2!1spt-BR!2sbr!4v1620000000000!5m2!1spt-BR!2sbr",
+  GOOGLE_MAPS_IFRAME_URL: "https://www.google.com/maps/embed?pb=!1m14!1m8!1m3!1d3664.4684073169747!2d-46.5694025!3d-23.298758!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x94ceedb3abfe6b33%3A0x147842871e75b3a7!2sS%C3%ADtio%20Della%20Torre!5e0!3m2!1spt-BR!2sbr!4v1780418948462!5m2!1spt-BR!2sbr",
   
   // ==========================================
   // 🔒 SENHA DO PAINEL DO ADMINISTRADOR

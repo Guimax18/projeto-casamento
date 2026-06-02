@@ -188,7 +188,7 @@ export default function HomePage() {
                       Domingo, 24 de Janeiro de 2027
                     </p>
                     <p className="font-body text-xs sm:text-sm text-text-dark/60 mt-1">
-                      Cerimônia pontual às 15:00h
+                      Cerimônia pontual às 09:00h
                     </p>
                   </div>
                 </div>

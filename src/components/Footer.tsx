@@ -22,7 +22,7 @@ export default function Footer() {
           <span>•</span>
           <Heart className="h-3 w-3 text-secondary fill-secondary animate-pulse" />
           <span>•</span>
-          <span>Rio de Janeiro, RJ</span>
+          <span>Estrada Municipal, 270 - Jardim Sandra, Mairiporã - SP, CEP: 07631-315</span>
         </div>
         
         <div className="border-t border-white/10 pt-6">
