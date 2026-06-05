@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { getGuests, updateRsvp, Guest } from '@/app/actions';
 import { Search, Loader2, Check, X, CalendarCheck, HelpCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { CONFIG } from '@/lib/config';
 
 export default function RsvpPage() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -78,11 +79,11 @@ export default function RsvpPage() {
   return (
     <div className="relative min-h-[90vh] flex items-center justify-center py-16 px-4 bg-cover bg-center bg-no-repeat bg-fixed"
       style={{
-        backgroundImage: `linear-gradient(rgba(243, 236, 245, 0.85), rgba(75, 0, 130, 0.25)), url('https://images.unsplash.com/photo-1490750967868-88aa4a44faa4?w=1200&q=80')`
+        backgroundImage: `linear-gradient(rgba(243, 236, 245, 0.85), rgba(75, 0, 130, 0.25)), url('${CONFIG.CONFIRMATION_BG}')`
       }}
     >
       <div className="w-full max-w-xl bg-white/90 backdrop-blur-md rounded-3xl shadow-2xl border border-border-lilac p-6 sm:p-10 animate-fade-in relative z-10">
-        
+
         {/* Cabeçalho */}
         <div className="text-center mb-8 sm:mb-10">
           <div className="h-14 w-14 rounded-full bg-light-lilac flex items-center justify-center text-primary mx-auto mb-4 border border-border-lilac/50">
@@ -133,7 +134,7 @@ export default function RsvpPage() {
           {guests.map((guest) => {
             const isConfirmed = guest.confirmed === true;
             const isDeclined = guest.confirmed === false;
-            
+
             return (
               <div
                 key={guest.id}
@@ -145,19 +146,18 @@ export default function RsvpPage() {
                     {guest.name}
                   </span>
                   <div className="flex items-center justify-center sm:justify-start space-x-1.5 mt-1">
-                    <span className={`w-2 h-2 rounded-full ${
-                      guest.confirmed === null 
-                        ? 'bg-amber-400' 
-                        : isConfirmed 
-                        ? 'bg-green-500' 
-                        : 'bg-red-400'
-                    }`} />
+                    <span className={`w-2 h-2 rounded-full ${guest.confirmed === null
+                        ? 'bg-amber-400'
+                        : isConfirmed
+                          ? 'bg-green-500'
+                          : 'bg-red-400'
+                      }`} />
                     <span className="text-[11px] font-body text-text-dark/50 uppercase tracking-wider font-semibold">
-                      {guest.confirmed === null 
-                        ? 'Pendente' 
-                        : isConfirmed 
-                        ? 'Presença Confirmada' 
-                        : 'Não poderá ir'}
+                      {guest.confirmed === null
+                        ? 'Pendente'
+                        : isConfirmed
+                          ? 'Presença Confirmada'
+                          : 'Não poderá ir'}
                     </span>
                   </div>
                 </div>
@@ -167,11 +167,10 @@ export default function RsvpPage() {
                   <button
                     onClick={() => handleRsvpChange(guest.id, guest.name, true)}
                     disabled={isConfirmed}
-                    className={`flex-1 sm:flex-initial px-4 py-2.5 rounded-xl font-body font-semibold text-xs sm:text-sm tracking-wide transition-all duration-300 flex items-center justify-center space-x-1.5 focus:outline-none ${
-                      isConfirmed
+                    className={`flex-1 sm:flex-initial px-4 py-2.5 rounded-xl font-body font-semibold text-xs sm:text-sm tracking-wide transition-all duration-300 flex items-center justify-center space-x-1.5 focus:outline-none ${isConfirmed
                         ? 'bg-primary text-white cursor-default shadow-md'
                         : 'bg-light-lilac/40 text-primary hover:bg-primary hover:text-white border border-border-lilac'
-                    }`}
+                      }`}
                   >
                     <Check className="h-4 w-4" />
                     <span>Sim, vou!</span>
@@ -180,11 +179,10 @@ export default function RsvpPage() {
                   <button
                     onClick={() => handleRsvpChange(guest.id, guest.name, false)}
                     disabled={isDeclined}
-                    className={`flex-1 sm:flex-initial px-4 py-2.5 rounded-xl font-body font-semibold text-xs sm:text-sm tracking-wide transition-all duration-300 flex items-center justify-center space-x-1.5 focus:outline-none ${
-                      isDeclined
+                    className={`flex-1 sm:flex-initial px-4 py-2.5 rounded-xl font-body font-semibold text-xs sm:text-sm tracking-wide transition-all duration-300 flex items-center justify-center space-x-1.5 focus:outline-none ${isDeclined
                         ? 'bg-red-600 text-white cursor-default shadow-md'
                         : 'bg-light-lilac/40 text-text-dark/70 hover:bg-red-50 hover:text-red-600 border border-border-lilac'
-                    }`}
+                      }`}
                   >
                     <X className="h-4 w-4" />
                     <span>Não poderei</span>

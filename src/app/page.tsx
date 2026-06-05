@@ -13,19 +13,8 @@ export default function HomePage() {
     setImageErrors((prev) => ({ ...prev, [id]: true }));
   };
 
-  const localPhotos = [
-    { id: 'photo-1519167758481-83f550bb49b3', label: 'Jardim Encantado' },
-    { id: 'photo-1464366400600-7168b8af9bc3', label: 'Salão Rústico' },
-    { id: 'photo-1507504030603-f0985f3d5e2c', label: 'Mesas ao Ar Livre' },
-    { id: 'photo-1510076857177-7470076d4098', label: 'Detalhes Florais' },
-  ];
-
-  const couplePhotos = [
-    { id: 'photo-1516589178581-6cd7833ae3b2', label: 'Sorrisos e Promessas' },
-    { id: 'photo-1529636798458-92182e662485', label: 'De Mãos Dadas para o Futuro' },
-    { id: 'photo-1511285560929-80b456fea0bc', label: 'O Abraço mais Seguro' },
-    { id: 'photo-1544116421-3f9c9f704b8a', label: 'Olhando na Mesma Direção' },
-  ];
+  const localPhotos = CONFIG.LOCAL_PHOTOS;
+  const couplePhotos = CONFIG.COUPLE_PHOTOS;
 
   return (
     <div className="flex flex-col w-full min-h-screen">
@@ -103,14 +92,14 @@ export default function HomePage() {
             <div className="grid grid-cols-2 gap-4 sm:gap-6 order-2 lg:order-1">
               {couplePhotos.map((photo) => (
                 <div
-                  key={photo.id}
+                  key={photo.src}
                   className="group relative aspect-square rounded-2xl overflow-hidden bg-light-lilac shadow-md hover:shadow-xl transition-all duration-500 border border-border-lilac/30"
                 >
-                  {!imageErrors[photo.id] ? (
+                  {!imageErrors[photo.src] ? (
                     <img
-                      src={`https://images.unsplash.com/${photo.id}?w=500&h=500&fit=crop&q=80`}
+                      src={photo.src}
                       alt={photo.label}
-                      onError={() => handleImageError(photo.id)}
+                      onError={() => handleImageError(photo.src)}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                     />
                   ) : (
@@ -120,6 +109,7 @@ export default function HomePage() {
                       <span className="text-[10px] text-text-dark/40 mt-1">Foto em breve</span>
                     </div>
                   )}
+                  {/* Label ao passar o mouse */}
                   {/* Subtle Label on Hover */}
                   <div className="absolute inset-0 bg-gradient-to-t from-primary/80 via-primary/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
                     <span className="text-white font-body text-xs sm:text-sm font-medium tracking-wide">
@@ -213,14 +203,14 @@ export default function HomePage() {
               <div className="grid grid-cols-2 gap-4">
                 {localPhotos.map((photo) => (
                   <div
-                    key={photo.id}
+                    key={photo.src}
                     className="group relative aspect-video rounded-xl overflow-hidden bg-light-lilac shadow-sm hover:shadow-md transition-all duration-300 border border-border-lilac/30"
                   >
-                    {!imageErrors[photo.id] ? (
+                    {!imageErrors[photo.src] ? (
                       <img
-                        src={`https://images.unsplash.com/${photo.id}?w=400&h=300&fit=crop&q=80`}
+                        src={photo.src}
                         alt={photo.label}
-                        onError={() => handleImageError(photo.id)}
+                        onError={() => handleImageError(photo.src)}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
                     ) : (
