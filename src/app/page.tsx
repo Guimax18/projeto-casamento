@@ -4,7 +4,10 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import Countdown from '@/components/Countdown';
 import { CONFIG } from '@/lib/config';
-import { MapPin, Calendar, Camera, Heart, Gift, CheckCircle } from 'lucide-react';
+import { MapPin, Calendar, Camera, Heart, Gift, CheckCircle, MessageSquare } from 'lucide-react';
+import Padrinhos from '@/components/Padrinhos';
+import InformacoesCasamento from '@/components/InformacoesCasamento';
+import FaqCasamento from '@/components/FaqCasamento';
 
 export default function HomePage() {
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
@@ -151,6 +154,9 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* SEÇÃO DE PADRINHOS E MADRINHAS */}
+      <Padrinhos />
+
       {/* 3. LOCAL DA FESTA */}
       <section className="py-20 sm:py-28 bg-white border-y border-border-lilac/30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -243,6 +249,39 @@ export default function HomePage() {
               />
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* SEÇÃO DE INFORMAÇÕES ÚTEIS */}
+      <InformacoesCasamento />
+
+      {/* SEÇÃO DE PERGUNTAS FREQUENTES */}
+      <FaqCasamento />
+
+      {/* CTA: MURAL DE MENSAGENS */}
+      <section className="py-20 sm:py-28 bg-gradient-to-br from-primary via-primary/95 to-secondary/80 text-white relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:32px_32px] opacity-5" />
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
+          <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-white/10 border border-white/20 backdrop-blur-sm mb-6 mx-auto">
+            <MessageSquare className="h-7 w-7 text-white" />
+          </div>
+          <span className="font-body text-xs font-bold text-white/60 tracking-widest uppercase block mb-3">
+            Palavras de Carinho
+          </span>
+          <h2 className="font-title text-3xl sm:text-5xl font-bold mb-4">
+            Mural de Mensagens
+          </h2>
+          <div className="w-12 h-[2px] bg-secondary mx-auto mb-6 rounded-full" />
+          <p className="font-body text-sm sm:text-base text-white/80 leading-relaxed max-w-xl mx-auto mb-10">
+            Deixe um recado especial para nós ou compartilhe seus votos de felicidade! Todas as mensagens públicas são exibidas no mural e lidas com muito carinho pelos noivos.
+          </p>
+          <Link
+            href="/mensagens"
+            className="inline-flex items-center space-x-2 px-8 py-4 bg-white text-primary font-body font-bold text-sm tracking-widest uppercase rounded-full shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300"
+          >
+            <MessageSquare className="h-4 w-4" />
+            <span>Ir ao Mural de Mensagens</span>
+          </Link>
         </div>
       </section>
     </div>

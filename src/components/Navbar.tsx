@@ -24,6 +24,7 @@ export default function Navbar() {
 
   const navLinks = [
     { name: 'Início', href: '/' },
+    { name: 'Mural de Recados', href: '/mensagens' },
     { name: 'Lista de Presentes', href: '/presentes' },
     { name: 'Confirmar Presença', href: '/confirmacao' },
     { name: 'Área dos Noivos', href: '/admin' },

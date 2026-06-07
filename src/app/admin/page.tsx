@@ -7,9 +7,11 @@ import {
   addGuest, 
   deleteGuest, 
   seedGuests, 
-  verifyAdminPassword,
   updateRsvp,
-  Guest 
+  getAdminMessages,
+  deleteMessage,
+  Guest,
+  Message 
 } from '@/app/actions';
 import { 
   Users, 
@@ -23,39 +25,76 @@ import {
   Lock, 
   Database,
   Loader2,
-  CheckCircle,
   HelpCircle,
-  Menu
+  Mail,
+  MessageSquare,
+  Globe,
+  EyeOff
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { CONFIG } from '@/lib/config';
+import { supabaseBrowser } from '@/lib/supabase';
 
 export default function AdminPage() {
   // Autenticação
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
-  const [authLoading, setAuthLoading] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [loginSubmitting, setLoginSubmitting] = useState(false);
+
+  // Estados de Abas
+  const [activeTab, setActiveTab] = useState<'convidados' | 'mensagens'>('convidados');
 
   // Dados do Dashboard
   const [stats, setStats] = useState({ total: 0, confirmed: 0, declined: 0, pending: 0 });
   const [guests, setGuests] = useState<Guest[]>([]);
   const [filteredGuests, setFilteredGuests] = useState<Guest[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   
   // Estados de UI
   const [loadingData, setLoadingData] = useState(false);
+  const [loadingMessages, setLoadingMessages] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [filterStatus, setFilterStatus] = useState('todos');
   const [adminSearch, setAdminSearch] = useState('');
   const [newGuestName, setNewGuestName] = useState('');
 
-  // 1. Verificar autenticação no carregamento
+  // 1. Monitorar estado de autenticação reativamente via Supabase Auth
   useEffect(() => {
-    const auth = sessionStorage.getItem('admin_authenticated');
-    if (auth === 'true') {
-      setIsAuthenticated(true);
-      fetchDashboardData();
-    }
+    const checkSession = async () => {
+      try {
+        const { data: { session } } = await supabaseBrowser.auth.getSession();
+        if (session && session.user && session.user.email === CONFIG.ADMIN_EMAIL) {
+          setIsAuthenticated(true);
+          fetchDashboardData();
+        } else {
+          setIsAuthenticated(false);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setAuthLoading(false);
+      }
+    };
+
+    checkSession();
+
+    // Ouvinte para mudanças de estado de autenticação (login/logout em outras abas, etc.)
+    const { data: { subscription } } = supabaseBrowser.auth.onAuthStateChange(async (event, session) => {
+      if (session && session.user && session.user.email === CONFIG.ADMIN_EMAIL) {
+        setIsAuthenticated(true);
+        fetchDashboardData();
+      } else {
+        setIsAuthenticated(false);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   // 2. Filtragem de convidados do lado do cliente para máxima velocidade
@@ -92,6 +131,8 @@ export default function AdminPage() {
 
       const dbGuests = await getAdminGuests();
       setGuests(dbGuests);
+
+      await fetchMessagesData();
     } catch (err) {
       console.error(err);
       toast.error('Erro ao carregar dados do painel.');
@@ -100,36 +141,72 @@ export default function AdminPage() {
     }
   };
 
-  // Trata Login Administrativo
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!passwordInput.trim()) return;
-
-    setAuthLoading(true);
+  // Carrega todas as mensagens (sem filtros de privacidade)
+  const fetchMessagesData = async () => {
+    setLoadingMessages(true);
     try {
-      const response = await verifyAdminPassword(passwordInput);
-      if (response.success) {
-        sessionStorage.setItem('admin_authenticated', 'true');
-        setIsAuthenticated(true);
-        toast.success('Acesso concedido! Bem-vindos, noivos! 💜');
-        fetchDashboardData();
-      } else {
-        toast.error('Senha incorreta! Tente novamente.');
-      }
+      const dbMessages = await getAdminMessages();
+      setMessages(dbMessages);
     } catch (err) {
       console.error(err);
-      toast.error('Falha de conexão.');
+      toast.error('Erro ao carregar mensagens.');
     } finally {
-      setAuthLoading(false);
+      setLoadingMessages(false);
+    }
+  };
+
+  // Trata Login Administrativo via Supabase Auth
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailInput.trim() || !passwordInput.trim()) {
+      toast.error('Preencha o e-mail e a senha.');
+      return;
+    }
+
+    setLoginSubmitting(true);
+    try {
+      const { data, error } = await supabaseBrowser.auth.signInWithPassword({
+        email: emailInput.trim(),
+        password: passwordInput,
+      });
+
+      if (error) {
+        toast.error(error.message || 'Senha ou e-mail inválido.');
+        setLoginSubmitting(false);
+        return;
+      }
+
+      // Validar se o e-mail logado é estritamente o e-mail dos noivos cadastrado no config
+      if (data.user?.email !== CONFIG.ADMIN_EMAIL) {
+        await supabaseBrowser.auth.signOut();
+        toast.error('Acesso restrito apenas ao e-mail dos noivos.');
+        setLoginSubmitting(false);
+        return;
+      }
+
+      toast.success('Acesso concedido! Bem-vindos, noivos! 💜');
+      setIsAuthenticated(true);
+      fetchDashboardData();
+    } catch (err) {
+      console.error(err);
+      toast.error('Falha na conexão.');
+    } finally {
+      setLoginSubmitting(false);
     }
   };
 
   // Logout do Painel
-  const handleLogout = () => {
-    sessionStorage.removeItem('admin_authenticated');
-    setIsAuthenticated(false);
-    setPasswordInput('');
-    toast.success('Você saiu do painel administrativo.');
+  const handleLogout = async () => {
+    try {
+      await supabaseBrowser.auth.signOut();
+      setIsAuthenticated(false);
+      setEmailInput('');
+      setPasswordInput('');
+      toast.success('Você saiu do painel administrativo.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao efetuar logout.');
+    }
   };
 
   // Adicionar Convidado
@@ -198,12 +275,7 @@ export default function AdminPage() {
       // Se o status for o mesmo, ignora
       if (previousGuest.confirmed === status) return;
 
-      // Para suportar colocar de volta como 'pendente' (null), podemos enviar null
-      // Como o updateRsvp espera boolean na Server Action, vamos fazer uma condicional rápida
-      // Se for null, podemos simplesmente chamar a API diretamente via supabase ou criamos a lógica na Action.
-      // Para manter a segurança, se for nulo passaremos uma atualização manual.
-      // Vamos simular a atualização manual chamando a Action updateRsvp passando boolean.
-      const response = await updateRsvp(guestId, status as boolean);
+      const response = await updateRsvp(guestId, status);
       
       if (response.success) {
         toast.success(`Status de ${name} atualizado com sucesso!`);
@@ -237,6 +309,25 @@ export default function AdminPage() {
     }
   };
 
+  // Excluir mensagem do mural
+  const handleDeleteMessage = async (id: string, name: string) => {
+    const confirm = window.confirm(`Deseja realmente excluir permanentemente a mensagem de "${name}"?`);
+    if (!confirm) return;
+
+    try {
+      const response = await deleteMessage(id);
+      if (response.success) {
+        toast.success('Mensagem excluída com sucesso.');
+        setMessages(prev => prev.filter(m => m.id !== id));
+      } else {
+        toast.error(response.error || 'Erro ao remover mensagem.');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Falha ao excluir mensagem.');
+    }
+  };
+
   // Semear/Popular lista de 99 convidados fornecida
   const handleSeedDatabase = async () => {
     const confirm = window.confirm('Deseja semear o banco com a lista inicial de 99 convidados fornecida? Isso só funcionará se o banco estiver vazio.');
@@ -259,31 +350,58 @@ export default function AdminPage() {
     }
   };
 
-  // RENDERIZAÇÃO DA TELA DE LOGIN
+  // RENDERIZAÇÃO DE ACESSO INICIAL / CARREGAMENTO DE SESSÃO
+  if (authLoading) {
+    return (
+      <div className="min-h-[85vh] flex flex-col items-center justify-center bg-off-white text-primary">
+        <Loader2 className="h-10 w-10 animate-spin mb-3" />
+        <span className="font-body text-xs font-semibold">Validando acesso seguro...</span>
+      </div>
+    );
+  }
+
+  // RENDERIZAÇÃO DA TELA DE LOGIN (COM E-MAIL E SENHA DO SUPABASE)
   if (!isAuthenticated) {
     return (
       <div className="min-h-[80vh] flex items-center justify-center py-16 px-4 bg-off-white">
         <div className="w-full max-w-md bg-white border border-border-lilac rounded-3xl p-6 sm:p-10 shadow-xl text-center">
-          <div className="h-14 w-14 rounded-full bg-light-lilac flex items-center justify-center text-primary mx-auto mb-4">
+          <div className="h-14 w-14 rounded-full bg-light-lilac flex items-center justify-center text-primary mx-auto mb-4 border border-border-lilac/30">
             <Lock className="h-6 w-6" />
           </div>
           <h2 className="font-title text-2xl sm:text-3xl font-bold text-primary">
             Área dos Noivos
           </h2>
           <p className="font-body text-xs sm:text-sm text-text-dark/60 mt-1 mb-8">
-            Painel restrito para Amanda e Guilherme. Digite a senha para acessar.
+            Faça login com sua conta do Supabase para acessar o painel de gestão.
           </p>
 
-          <form onSubmit={handleLogin} className="space-y-6">
+          <form onSubmit={handleLogin} className="space-y-5">
             <div className="text-left">
-              <label htmlFor="admin-pass" className="block text-xs font-semibold text-text-dark/70 mb-2">
-                Senha de Acesso
+              <label htmlFor="admin-email" className="block text-xs font-semibold text-text-dark/70 mb-1.5 flex items-center space-x-1">
+                <Mail className="h-3.5 w-3.5 text-text-dark/40" />
+                <span>E-mail</span>
+              </label>
+              <input
+                id="admin-email"
+                type="email"
+                required
+                placeholder="Ex: noivos@exemplo.com"
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-border-lilac bg-white text-text-dark font-body text-sm placeholder:text-text-dark/40 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300"
+              />
+            </div>
+
+            <div className="text-left">
+              <label htmlFor="admin-pass" className="block text-xs font-semibold text-text-dark/70 mb-1.5 flex items-center space-x-1">
+                <Lock className="h-3.5 w-3.5 text-text-dark/40" />
+                <span>Senha</span>
               </label>
               <input
                 id="admin-pass"
                 type="password"
                 required
-                placeholder="Digite a senha administrativa..."
+                placeholder="Sua senha do Supabase..."
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl border border-border-lilac bg-white text-text-dark font-body text-sm placeholder:text-text-dark/40 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300"
@@ -292,26 +410,22 @@ export default function AdminPage() {
 
             <button
               type="submit"
-              disabled={authLoading}
+              disabled={loginSubmitting}
               className="w-full py-3.5 bg-primary text-white font-body font-bold text-sm tracking-wider uppercase rounded-xl hover:bg-primary/95 shadow-md hover:shadow-lg transition-all duration-300 flex items-center justify-center space-x-2 disabled:opacity-50"
             >
-              {authLoading ? (
+              {loginSubmitting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <span>Acessar Painel</span>
               )}
             </button>
           </form>
-
-          <div className="mt-8 text-center text-[10px] text-text-dark/40 leading-relaxed border-t border-border-lilac/30 pt-6">
-            💡 Dica: a senha padrão de acesso está configurada como <code className="bg-light-lilac px-1.5 py-0.5 rounded font-mono text-primary font-bold">amandaeguilherme2027</code>.
-          </div>
         </div>
       </div>
     );
   }
 
-  // RENDERIZAÇÃO DO DASHBOARD ADMINISTRATIVO
+  // RENDERIZAÇÃO DO DASHBOARD ADMINISTRATIVO COMPLETO
   return (
     <div className="bg-off-white min-h-[90vh] py-10 sm:py-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -323,12 +437,12 @@ export default function AdminPage() {
               Painel de Gestão
             </h2>
             <p className="font-body text-xs sm:text-sm text-text-dark/60 mt-0.5">
-              Bem-vindos, Amanda & Guilherme! Monitorem o RSVP e gerenciem seus convidados.
+              Bem-vindos, Amanda & Guilherme! Monitorem o RSVP e mural de recados de carinho.
             </p>
           </div>
           
           <div className="flex items-center space-x-3 w-full sm:w-auto">
-            {guests.length === 0 && (
+            {guests.length === 0 && activeTab === 'convidados' && (
               <button
                 onClick={handleSeedDatabase}
                 disabled={actionLoading}
@@ -345,7 +459,7 @@ export default function AdminPage() {
               className="px-4 py-2.5 border border-red-200 text-red-600 font-body font-semibold text-xs tracking-wider uppercase rounded-xl hover:bg-red-50 transition-all duration-300 flex items-center justify-center space-x-1.5 focus:outline-none"
             >
               <LogOut className="h-4 w-4" />
-              <span className="hidden sm:inline">Sair</span>
+              <span>Sair</span>
             </button>
           </div>
         </div>
@@ -411,98 +525,245 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 2. GRID PRINCIPAL: ADICIONAR CONVIDADO E TABELA */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-          
-          {/* Coluna Lateral: Adicionar Convidado */}
-          <div className="bg-white border border-border-lilac/50 rounded-3xl p-6 shadow-sm space-y-6">
-            <h3 className="font-title text-lg sm:text-xl font-bold text-primary border-b border-border-lilac/30 pb-3 flex items-center space-x-2">
-              <Plus className="h-5 w-5" />
-              <span>Novo Convidado</span>
-            </h3>
-
-            <form onSubmit={handleAddGuest} className="space-y-4">
-              <div>
-                <label htmlFor="new-name" className="block text-xs font-semibold text-text-dark/70 mb-1.5">
-                  Nome do Convidado
-                </label>
-                <input
-                  id="new-name"
-                  type="text"
-                  required
-                  placeholder="Nome completo ou abreviado..."
-                  value={newGuestName}
-                  onChange={(e) => setNewGuestName(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-border-lilac bg-white text-text-dark font-body text-sm placeholder:text-text-dark/45 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={actionLoading || !newGuestName.trim()}
-                className="w-full py-3 bg-primary hover:bg-primary/95 text-white font-body font-bold text-xs tracking-wider uppercase rounded-xl transition-all duration-300 flex items-center justify-center space-x-1.5 shadow-sm disabled:opacity-50"
-              >
-                {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                <span>Adicionar à Lista</span>
-              </button>
-            </form>
-            
-            <div className="bg-light-lilac/25 border border-dashed border-border-lilac/50 rounded-xl p-4 text-[11px] text-text-dark/60 leading-relaxed">
-              📌 <strong>Nota:</strong> A lista de convidados pré-definida permite que seus convidados realizem a busca e RSVP de forma privada e segura. Nomes cadastrados aqui ficarão imediatamente disponíveis para pesquisa no site.
-            </div>
-          </div>
-
-          {/* Coluna Central/Larga: Tabela de Convidados */}
-          <div className="lg:col-span-2 bg-white border border-border-lilac/50 rounded-3xl p-6 shadow-sm space-y-6">
-            
-            {/* Header da Tabela com Busca e Filtros */}
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 border-b border-border-lilac/30 pb-4">
-              <h3 className="font-title text-lg sm:text-xl font-bold text-primary flex items-center space-x-2">
-                <Users className="h-5 w-5" />
-                <span>Lista Oficial</span>
-                <span className="bg-light-lilac text-primary text-xs px-2 py-0.5 rounded-full font-body font-semibold">
-                  {filteredGuests.length}
+        {/* 2. ABAS DE NAVEGAÇÃO INTERNA */}
+        <div className="flex border-b border-border-lilac/50 mb-8 space-x-6">
+          <button
+            onClick={() => setActiveTab('convidados')}
+            className={`pb-4 text-sm font-body font-bold uppercase tracking-wider transition-all border-b-2 focus:outline-none ${
+              activeTab === 'convidados'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-text-dark/40 hover:text-text-dark/70'
+            }`}
+          >
+            <span className="flex items-center space-x-1.5">
+              <Users className="h-4 w-4" />
+              <span>Lista de Convidados</span>
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab('mensagens')}
+            className={`pb-4 text-sm font-body font-bold uppercase tracking-wider transition-all border-b-2 focus:outline-none ${
+              activeTab === 'mensagens'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-text-dark/40 hover:text-text-dark/70'
+            }`}
+          >
+            <span className="flex items-center space-x-1.5">
+              <MessageSquare className="h-4 w-4" />
+              <span>Mensagens Recebidas</span>
+              {messages.length > 0 && (
+                <span className="bg-primary text-white text-[10px] px-1.5 py-0.5 rounded-full font-semibold">
+                  {messages.length}
                 </span>
+              )}
+            </span>
+          </button>
+        </div>
+
+        {/* 3. CONTEÚDO DAS ABAS */}
+        {activeTab === 'convidados' ? (
+          /* ABA 1: CONVIDADOS */
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+            
+            {/* Coluna Lateral: Adicionar Convidado */}
+            <div className="bg-white border border-border-lilac/50 rounded-3xl p-6 shadow-sm space-y-6">
+              <h3 className="font-title text-lg sm:text-xl font-bold text-primary border-b border-border-lilac/30 pb-3 flex items-center space-x-2">
+                <Plus className="h-5 w-5" />
+                <span>Novo Convidado</span>
               </h3>
 
-              <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
-                {/* Campo de Busca Interno */}
-                <div className="relative w-full sm:w-48">
+              <form onSubmit={handleAddGuest} className="space-y-4">
+                <div>
+                  <label htmlFor="new-name" className="block text-xs font-semibold text-text-dark/70 mb-1.5">
+                    Nome do Convidado
+                  </label>
                   <input
+                    id="new-name"
                     type="text"
-                    placeholder="Filtrar por nome..."
-                    value={adminSearch}
-                    onChange={(e) => setAdminSearch(e.target.value)}
-                    className="w-full pl-8 pr-3 py-2 rounded-xl border border-border-lilac text-xs focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-text-dark/40"
+                    required
+                    placeholder="Nome completo ou abreviado..."
+                    value={newGuestName}
+                    onChange={(e) => setNewGuestName(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-border-lilac bg-white text-text-dark font-body text-sm placeholder:text-text-dark/45 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300"
                   />
-                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-text-dark/40" />
                 </div>
 
-                {/* Filtro Dropdown */}
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  className="w-full sm:w-auto px-3 py-2 rounded-xl border border-border-lilac text-xs text-text-dark bg-white font-body focus:outline-none focus:ring-1 focus:ring-primary"
+                <button
+                  type="submit"
+                  disabled={actionLoading || !newGuestName.trim()}
+                  className="w-full py-3 bg-primary hover:bg-primary/95 text-white font-body font-bold text-xs tracking-wider uppercase rounded-xl transition-all duration-300 flex items-center justify-center space-x-1.5 shadow-sm disabled:opacity-50"
                 >
-                  <option value="todos">Todos os Status</option>
-                  <option value="confirmado">Confirmados</option>
-                  <option value="recusado">Recusados</option>
-                  <option value="pendente">Pendentes</option>
-                </select>
+                  {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  <span>Adicionar à Lista</span>
+                </button>
+              </form>
+              
+              <div className="bg-light-lilac/25 border border-dashed border-border-lilac/50 rounded-xl p-4 text-[11px] text-text-dark/60 leading-relaxed">
+                📌 <strong>Nota:</strong> A lista de convidados pré-definida permite que seus convidados realizem a busca e RSVP de forma privada e segura. Nomes cadastrados aqui ficarão imediatamente disponíveis para pesquisa no site.
               </div>
             </div>
 
-            {/* Listagem de Convidados */}
-            {loadingData ? (
+            {/* Coluna Central/Larga: Tabela de Convidados */}
+            <div className="lg:col-span-2 bg-white border border-border-lilac/50 rounded-3xl p-6 shadow-sm space-y-6">
+              
+              {/* Header da Tabela com Busca e Filtros */}
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-4 border-b border-border-lilac/30 pb-4">
+                <h3 className="font-title text-lg sm:text-xl font-bold text-primary flex items-center space-x-2">
+                  <Users className="h-5 w-5" />
+                  <span>Lista Oficial</span>
+                  <span className="bg-light-lilac text-primary text-xs px-2 py-0.5 rounded-full font-body font-semibold">
+                    {filteredGuests.length}
+                  </span>
+                </h3>
+
+                <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+                  {/* Campo de Busca Interno */}
+                  <div className="relative w-full sm:w-48">
+                    <input
+                      type="text"
+                      placeholder="Filtrar por nome..."
+                      value={adminSearch}
+                      onChange={(e) => setAdminSearch(e.target.value)}
+                      className="w-full pl-8 pr-3 py-2 rounded-xl border border-border-lilac text-xs focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-text-dark/40"
+                    />
+                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-text-dark/40" />
+                  </div>
+
+                  {/* Filtro Dropdown */}
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                    className="w-full sm:w-auto px-3 py-2 rounded-xl border border-border-lilac text-xs text-text-dark bg-white font-body focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="todos">Todos os Status</option>
+                    <option value="confirmado">Confirmados</option>
+                    <option value="recusado">Recusados</option>
+                    <option value="pendente">Pendentes</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Listagem de Convidados */}
+              {loadingData ? (
+                <div className="py-20 flex flex-col items-center justify-center text-primary/70">
+                  <Loader2 className="h-8 w-8 animate-spin mb-2" />
+                  <span className="font-body text-xs">Buscando convidados no Supabase...</span>
+                </div>
+              ) : filteredGuests.length === 0 ? (
+                <div className="py-16 text-center bg-light-lilac/10 rounded-2xl border border-dashed border-border-lilac/40">
+                  <HelpCircle className="h-8 w-8 text-primary/30 mx-auto mb-2" />
+                  <p className="font-body text-sm font-semibold text-text-dark/60">Nenhum convidado encontrado.</p>
+                  <p className="font-body text-xs text-text-dark/40 mt-1">Experimente limpar os filtros ou adicionar novos convidados.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto -mx-6 sm:mx-0">
+                  <div className="inline-block min-w-full align-middle px-6 sm:px-0">
+                    <table className="min-w-full divide-y divide-border-lilac/30">
+                      <thead>
+                        <tr className="text-left font-body text-[11px] font-bold text-text-dark/50 uppercase tracking-widest bg-light-lilac/20 rounded-lg">
+                          <th className="py-3 px-4">Nome</th>
+                          <th className="py-3 px-4 text-center">Status</th>
+                          <th className="py-3 px-4 text-center">Ações Rápidas (RSVP)</th>
+                          <th className="py-3 px-4 text-right">Ação</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border-lilac/25">
+                        {filteredGuests.map((guest) => (
+                          <tr key={guest.id} className="hover:bg-light-lilac/10 transition-colors duration-200">
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              <span className="font-body text-sm font-semibold text-text-dark">{guest.name}</span>
+                            </td>
+                            <td className="py-3 px-4 whitespace-nowrap text-center">
+                              <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${
+                                guest.confirmed === true 
+                                  ? 'bg-green-50 border-green-200 text-green-700' 
+                                  : guest.confirmed === false 
+                                  ? 'bg-red-50 border-red-200 text-red-700' 
+                                  : 'bg-amber-50 border-amber-200 text-amber-700'
+                              }`}>
+                                {guest.confirmed === null 
+                                  ? 'Pendente' 
+                                  : guest.confirmed === true 
+                                  ? 'Confirmado' 
+                                  : 'Recusado'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 whitespace-nowrap text-center">
+                              <div className="inline-flex space-x-1.5">
+                                <button
+                                  onClick={() => handleAdminRsvpChange(guest.id, guest.name, true)}
+                                  className={`px-2 py-1 rounded text-[10px] font-bold border transition-all ${
+                                    guest.confirmed === true
+                                      ? 'bg-green-600 border-green-600 text-white cursor-default'
+                                      : 'bg-white border-green-200 text-green-600 hover:bg-green-50'
+                                  }`}
+                                  title="Confirmar Presença"
+                                >
+                                  Sim
+                                </button>
+                                <button
+                                  onClick={() => handleAdminRsvpChange(guest.id, guest.name, false)}
+                                  className={`px-2 py-1 rounded text-[10px] font-bold border transition-all ${
+                                    guest.confirmed === false
+                                      ? 'bg-red-600 border-red-600 text-white cursor-default'
+                                      : 'bg-white border-red-200 text-red-600 hover:bg-red-50'
+                                  }`}
+                                  title="Recusar Presença"
+                                >
+                                  Não
+                                </button>
+                                <button
+                                  onClick={() => handleAdminRsvpChange(guest.id, guest.name, null)}
+                                  className={`px-2 py-1 rounded text-[10px] font-bold border transition-all ${
+                                    guest.confirmed === null
+                                      ? 'bg-amber-500 border-amber-500 text-white cursor-default'
+                                      : 'bg-white border-amber-200 text-amber-500 hover:bg-amber-50'
+                                  }`}
+                                  title="Definir como Pendente"
+                                >
+                                  Pend.
+                                </button>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 whitespace-nowrap text-right">
+                              <button
+                                onClick={() => handleDeleteGuest(guest.id, guest.name)}
+                                className="text-red-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors duration-200"
+                                title="Excluir Convidado"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          /* ABA 2: MENSAGENS RECEBIDAS */
+          <div className="bg-white border border-border-lilac/50 rounded-3xl p-6 shadow-sm space-y-6">
+            <h3 className="font-title text-lg sm:text-xl font-bold text-primary border-b border-border-lilac/30 pb-4 flex items-center space-x-2">
+              <MessageSquare className="h-5 w-5" />
+              <span>Mensagens e Recados dos Convidados</span>
+              <span className="bg-light-lilac text-primary text-xs px-2 py-0.5 rounded-full font-body font-semibold">
+                {messages.length}
+              </span>
+            </h3>
+
+            {loadingMessages ? (
               <div className="py-20 flex flex-col items-center justify-center text-primary/70">
                 <Loader2 className="h-8 w-8 animate-spin mb-2" />
-                <span className="font-body text-xs">Buscando convidados no Supabase...</span>
+                <span className="font-body text-xs">Buscando recados no Supabase...</span>
               </div>
-            ) : filteredGuests.length === 0 ? (
+            ) : messages.length === 0 ? (
               <div className="py-16 text-center bg-light-lilac/10 rounded-2xl border border-dashed border-border-lilac/40">
-                <HelpCircle className="h-8 w-8 text-primary/30 mx-auto mb-2" />
-                <p className="font-body text-sm font-semibold text-text-dark/60">Nenhum convidado encontrado.</p>
-                <p className="font-body text-xs text-text-dark/40 mt-1">Experimente limpar os filtros ou adicionar novos convidados.</p>
+                <MessageSquare className="h-8 w-8 text-primary/30 mx-auto mb-2" />
+                <p className="font-body text-sm font-semibold text-text-dark/60">Nenhum recado recebido ainda.</p>
+                <p className="font-body text-xs text-text-dark/40 mt-1">As mensagens enviadas pelos convidados no mural aparecerão aqui.</p>
               </div>
             ) : (
               <div className="overflow-x-auto -mx-6 sm:mx-0">
@@ -510,88 +771,65 @@ export default function AdminPage() {
                   <table className="min-w-full divide-y divide-border-lilac/30">
                     <thead>
                       <tr className="text-left font-body text-[11px] font-bold text-text-dark/50 uppercase tracking-widest bg-light-lilac/20 rounded-lg">
-                        <th className="py-3 px-4">Nome</th>
-                        <th className="py-3 px-4 text-center">Status</th>
-                        <th className="py-3 px-4 text-center">Ações Rápidas (RSVP)</th>
+                        <th className="py-3 px-4">Convidado</th>
+                        <th className="py-3 px-4">Mensagem</th>
+                        <th className="py-3 px-4 text-center">Fuso Envio</th>
+                        <th className="py-3 px-4 text-center">Exibição</th>
                         <th className="py-3 px-4 text-right">Ação</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-border-lilac/25">
-                      {filteredGuests.map((guest) => (
-                        <tr key={guest.id} className="hover:bg-light-lilac/10 transition-colors duration-200">
-                          <td className="py-3 px-4 whitespace-nowrap">
-                            <span className="font-body text-sm font-semibold text-text-dark">{guest.name}</span>
-                          </td>
-                          <td className="py-3 px-4 whitespace-nowrap text-center">
-                            <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${
-                              guest.confirmed === true 
-                                ? 'bg-green-50 border-green-200 text-green-700' 
-                                : guest.confirmed === false 
-                                ? 'bg-red-50 border-red-200 text-red-700' 
-                                : 'bg-amber-50 border-amber-200 text-amber-700'
-                            }`}>
-                              {guest.confirmed === null 
-                                ? 'Pendente' 
-                                : guest.confirmed === true 
-                                ? 'Confirmado' 
-                                : 'Recusado'}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 whitespace-nowrap text-center">
-                            <div className="inline-flex space-x-1.5">
+                    <tbody className="divide-y divide-border-lilac/25 font-body text-sm">
+                      {messages.map((msg) => {
+                        const formattedDate = format(new Date(msg.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+                        return (
+                          <tr key={msg.id} className="hover:bg-light-lilac/10 transition-colors duration-200">
+                            <td className="py-3 px-4 font-semibold text-text-dark whitespace-nowrap">
+                              {msg.nome}
+                            </td>
+                            <td className="py-3 px-4 text-text-dark/80 max-w-sm break-words py-4">
+                              {msg.mensagem}
+                            </td>
+                            <td className="py-3 px-4 text-center text-xs text-text-dark/50 whitespace-nowrap">
+                              {formattedDate}
+                            </td>
+                            <td className="py-3 px-4 text-center whitespace-nowrap">
+                              <span className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${
+                                msg.exibir_publico
+                                  ? 'bg-green-50 border-green-200 text-green-700'
+                                  : 'bg-gray-100 border-gray-200 text-gray-600'
+                              }`}>
+                                {msg.exibir_publico ? (
+                                  <>
+                                    <Globe className="h-3 w-3 mr-0.5" />
+                                    <span>Pública</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <EyeOff className="h-3 w-3 mr-0.5" />
+                                    <span>Privada</span>
+                                  </>
+                                )}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-right whitespace-nowrap">
                               <button
-                                onClick={() => handleAdminRsvpChange(guest.id, guest.name, true)}
-                                className={`px-2 py-1 rounded text-[10px] font-bold border transition-all ${
-                                  guest.confirmed === true
-                                    ? 'bg-green-600 border-green-600 text-white cursor-default'
-                                    : 'bg-white border-green-200 text-green-600 hover:bg-green-50'
-                                }`}
-                                title="Confirmar Presença"
+                                onClick={() => handleDeleteMessage(msg.id, msg.nome)}
+                                className="text-red-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors duration-200"
+                                title="Excluir Mensagem"
                               >
-                                Sim
+                                <Trash2 className="h-4 w-4" />
                               </button>
-                              <button
-                                onClick={() => handleAdminRsvpChange(guest.id, guest.name, false)}
-                                className={`px-2 py-1 rounded text-[10px] font-bold border transition-all ${
-                                  guest.confirmed === false
-                                    ? 'bg-red-600 border-red-600 text-white cursor-default'
-                                    : 'bg-white border-red-200 text-red-600 hover:bg-red-50'
-                                }`}
-                                title="Recusar Presença"
-                              >
-                                Não
-                              </button>
-                              <button
-                                onClick={() => handleAdminRsvpChange(guest.id, guest.name, null)}
-                                className={`px-2 py-1 rounded text-[10px] font-bold border transition-all ${
-                                  guest.confirmed === null
-                                    ? 'bg-amber-500 border-amber-500 text-white cursor-default'
-                                    : 'bg-white border-amber-200 text-amber-500 hover:bg-amber-50'
-                                }`}
-                                title="Definir como Pendente"
-                              >
-                                Pend.
-                              </button>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 whitespace-nowrap text-right">
-                            <button
-                              onClick={() => handleDeleteGuest(guest.id, guest.name)}
-                              className="text-red-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors duration-200"
-                              title="Excluir Convidado"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
               </div>
             )}
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

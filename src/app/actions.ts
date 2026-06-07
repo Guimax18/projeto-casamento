@@ -1,6 +1,6 @@
 'use server';
 
-import { getSupabaseServer } from '@/lib/supabase';
+import { getSupabaseServer } from '@/lib/supabaseServer';
 import { CONFIG } from '@/lib/config';
 
 // Interface do Convidado
@@ -244,3 +244,102 @@ export async function seedGuests(): Promise<{ success: boolean; count?: number; 
     return { success: false, error: error.message || 'Falha ao preencher banco de dados.' };
   }
 }
+
+// Interface da Mensagem
+export interface Message {
+  id: string;
+  created_at: string;
+  nome: string;
+  mensagem: string;
+  exibir_publico: boolean;
+}
+
+/**
+ * Busca todas as mensagens públicas da tabela mensagens (exibir_publico = true)
+ */
+export async function getPublicMessages(): Promise<{ success: boolean; data?: Message[]; error?: string }> {
+  try {
+    const supabase = getSupabaseServer();
+    const { data, error } = await supabase
+      .from('mensagens')
+      .select('*')
+      .eq('exibir_publico', true)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return { success: true, data: data as Message[] };
+  } catch (error: any) {
+    console.error('Erro ao buscar mensagens públicas:', error);
+    return { success: false, error: error.message || 'Falha ao carregar mensagens.' };
+  }
+}
+
+/**
+ * Adiciona um recado na tabela mensagens
+ */
+export async function addMessage(nome: string, mensagem: string, exibirPublico: boolean): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!nome || !nome.trim()) {
+      return { success: false, error: 'O nome é obrigatório.' };
+    }
+    if (!mensagem || !mensagem.trim()) {
+      return { success: false, error: 'A mensagem é obrigatória.' };
+    }
+
+    const supabase = getSupabaseServer();
+    const { error } = await supabase
+      .from('mensagens')
+      .insert([{ 
+        nome: nome.trim(), 
+        mensagem: mensagem.trim(), 
+        exibir_publico: exibirPublico 
+      }]);
+
+    if (error) throw error;
+    return { success: true };
+  } catch (error: any) {
+    console.error('Erro ao adicionar mensagem:', error);
+    return { success: false, error: error.message || 'Falha ao enviar mensagem.' };
+  }
+}
+
+/**
+ * ADMIN: Busca todas as mensagens sem filtros de privacidade
+ */
+export async function getAdminMessages(): Promise<Message[]> {
+  try {
+    const supabase = getSupabaseServer();
+    const { data, error } = await supabase
+      .from('mensagens')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data as Message[];
+  } catch (error) {
+    console.error('Erro ao buscar mensagens (admin):', error);
+    return [];
+  }
+}
+
+/**
+ * ADMIN: Exclui uma mensagem por ID
+ */
+export async function deleteMessage(id: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!id) return { success: false, error: 'ID inválido.' };
+
+    const supabase = getSupabaseServer();
+    const { error } = await supabase
+      .from('mensagens')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    return { success: true };
+  } catch (error: any) {
+    console.error('Erro ao excluir mensagem:', error);
+    return { success: false, error: error.message || 'Falha ao excluir mensagem.' };
+  }
+}
+

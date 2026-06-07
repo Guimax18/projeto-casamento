@@ -99,4 +99,50 @@ export const CONFIG = {
       label: 'Detalhes Florais',
     },
   ],
+
+  // ==========================================
+  // 📧 E-MAIL DE LOGIN DO ADMINISTRADOR
+  // ==========================================
+  // Como funciona:
+  //   1. Cadastre esse e-mail no painel de Authentication do seu Supabase.
+  //   2. Use esse e-mail e a senha que escolheu para fazer login na área /admin.
+  // ==========================================
+  ADMIN_EMAIL: 'amandaeguilherme2027@gmail.com',
+
+  // ==========================================
+  // 👥 PADRINHOS & MADRINHAS
+  // ==========================================
+  // Como trocar as fotos:
+  //   1. Coloque os arquivos dentro da pasta: public/images/padrinhos/
+  //      Ex: public/images/padrinhos/joao.jpg
+  //   2. Mude o valor de "image" abaixo para '/images/padrinhos/joao.jpg'
+  //
+  // Dica: Use fotos quadradas ou verticais focadas no rosto.
+  // ==========================================
+  PADRINHOS: [
+    {
+      name: 'João Silva',
+      role: 'Padrinho do Noivo',
+      description: 'O irmão de coração que a vida me deu para estar sempre presente.',
+      image: '', // Fica vazio para usar o placeholder inicial
+    },
+    {
+      name: 'Maria Santos',
+      role: 'Madrinha da Noiva',
+      description: 'Minha melhor amiga e conselheira de todas as horas.',
+      image: '',
+    },
+    {
+      name: 'Carlos Oliveira',
+      role: 'Padrinho',
+      description: 'Amigo leal que sempre apoia e alegra nossa caminhada.',
+      image: '',
+    },
+    {
+      name: 'Ana Souza',
+      role: 'Madrinha',
+      description: 'Parceira de risadas e momentos inesquecíveis desde a infância.',
+      image: '',
+    },
+  ],
 };
