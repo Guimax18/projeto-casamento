@@ -10,9 +10,10 @@ interface PixModalProps {
   onClose: () => void;
   giftTitle: string;
   giftValue: number;
+  onConfirm: (guestName: string) => void;
 }
 
-export default function PixModal({ isOpen, onClose, giftTitle, giftValue }: PixModalProps) {
+export default function PixModal({ isOpen, onClose, giftTitle, giftValue, onConfirm }: PixModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [copied, setCopied] = useState(false);
   const [guestName, setGuestName] = useState('');
@@ -61,19 +62,10 @@ export default function PixModal({ isOpen, onClose, giftTitle, giftValue }: PixM
       return;
     }
 
-    // Feedback emocionante conforme solicitado!
-    toast.success(
-      `Obrigado, ${guestName}! Intenção de presentear registrada com carinho! Não se esqueça de realizar o Pix.`,
-      {
-        duration: 6000,
-        icon: '💝',
-        style: {
-          background: '#4B0082',
-          color: '#ffffff',
-          fontWeight: 'bold',
-        },
-      }
-    );
+    // Alerta exigido no fluxo de confirmação do Pix
+    alert("Muito obrigado! Você acabou de contribuir para fazer parte da nossa história e do nosso novo lar! Que Deus abençoe ricamente!");
+    
+    onConfirm(guestName);
     onClose();
   };
 
